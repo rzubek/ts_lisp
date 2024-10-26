@@ -1,0 +1,23 @@
+grammar Grammar
+
+  exps    <-  exp+
+  exp     <-  space / value
+  value   <-  atom / list
+  atom    <-  nil / float / int / symbol / string
+
+  nil     <-  "(" space? ")"                 %make_nil
+  list    <-  "(" listelt+ ")"               %make_list
+  listelt <-  space? value space?            %make_listelt
+
+  space   <-  [ \t\n\r]+                     %make_space
+  string  <-  [\"] [^\"]* [\"]               %make_string
+  symbol  <-  alpha alphanum*                %make_symbol
+
+  int     <-  "-"? digit+                    %make_int
+  float   <-  int "." digit+                 %make_float
+
+  alphanum <- alpha / digit
+  digit    <- [0-9]
+  alpha    <- [a-zA-Z\-\_]
+
+  

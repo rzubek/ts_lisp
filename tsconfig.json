@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "ES6",
+        "module": "CommonJS",
+        "rootDir": "src",
+        "outDir": "out",
+        "allowJs": true,
+        "sourceMap": true
+    },
+
+    "include": [
+        "./**/*.ts",
+        "src/grammar-files/*.js"
+    ]
+    
+}
+  
