@@ -1,20 +1,25 @@
 grammar Grammar
 
   exps    <-  exp+
-  exp     <-  space / value
-  value   <-  atom / list
-  atom    <-  nil / float / int / symbol / string
+  exp     <-  noise / value
+  value   <-  atom / quoted / list 
+  atom    <-  nil / bool / float / int / symbol / string
 
-  nil     <-  "(" space? ")"                 %make_nil
+  quoted  <-  "'" ( atom / list )            %make_quoted
+
+  nil     <-  "(" noise? ")"                 %make_nil
   list    <-  "(" listelt+ ")"               %make_list
-  listelt <-  space? value space?            %make_listelt
+  listelt <-  noise* exp noise*              %make_listelt
 
+  noise   <-  comment / space
+  comment <- ";" [^\r\n]* [\r\n]*            %make_comment
   space   <-  [ \t\n\r]+                     %make_space
-  string  <-  [\"] [^\"]* [\"]               %make_string
+  string  <-  [\"] [^\"\r\n]* [\"]           %make_string
   symbol  <-  alpha alphanum*                %make_symbol
 
   int     <-  "-"? digit+                    %make_int
   float   <-  int "." digit+                 %make_float
+  bool    <- "#" [TtFf]                      %make_bool
 
   alphanum <- alpha / digit
   digit    <- [0-9]

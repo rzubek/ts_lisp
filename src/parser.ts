@@ -4,6 +4,7 @@ var parser = require('./grammar-files/grammar.js')
 
 enum Types {
     Null,
+    Boolean,
     String,
     Symbol,
     Number,
@@ -29,7 +30,7 @@ class Cons {
     }
 }
 
-type Values = Cons | string | number | null
+type Values = Cons | boolean | string | number | null
 
 class Val {
     type: Types
@@ -58,7 +59,16 @@ function valToString(type: Types, value: Values): string {
         case Types.String: return "\"" + (value as string) + "\""
         case Types.Symbol: return (value as string)
         case Types.Cons: return arrayToString(consToArray(value as Cons))
+        case Types.Boolean: return (value as boolean) ? "#t" : "#f"
+        default: 
+            throw new Error(`Unknown val type: ${type}`)
     }
+}
+
+function makeTwoElementCons(first: Val, second: Val): Val{
+    return new Val(Types.Cons, new Cons(first,
+        new Val(Types.Cons, new Cons(second, NULL))
+    ))
 }
 
 function arrayToCons(vals: Array<Val>): Val {
@@ -91,20 +101,24 @@ const actions = {
     //
     // note: most of these return a Val 
 
-    make_symbol(_input: any, _start: number, _end: number, [first, rest]: any) {
+    make_quoted(_input: string, _start: number, _end: number, [_quote, body]: any) {
+        return makeTwoElementCons( new Val(Types.Symbol, "quote"), body)
+    },
+
+    make_symbol(_input: string, _start: number, _end: number, [first, rest]: any) {
         return new Val(Types.Symbol, first.text + rest.text)
     },
 
-    make_string(_input: any, _start: number, _end: number, [_, string]: any) {
+    make_string(_input: string, _start: number, _end: number, [_, string]: any) {
         return new Val(Types.String, string.text)
     },
 
-    make_list(_input: any, _start: number, _end: number, [_, elts]: any) {
+    make_list(_input: string, _start: number, _end: number, [_, elts]: any) {
         var filtered: Array<Val> = elts.elements.filter((e: any) => (e instanceof Val))
         return arrayToCons(filtered)
     },
 
-    make_listelt(_input: any, _start: number, _end: number, [_, elt]: any) {
+    make_listelt(_input: string, _start: number, _end: number, [_, elt]: any) {
         return elt  // internal, just returns a raw item???
     },
 
@@ -116,11 +130,19 @@ const actions = {
         return new Val(Types.Number, parseFloat(input.substring(start, end)))
     },
 
+    make_bool(_input: string, _start: number, _end: number, [_, elt]: any) {
+        return new Val(Types.Boolean, (elt.text == "t" || elt.text == "T"))
+    },
+
     make_nil(_input: string, _start: number, _end: number, _: any) {
         return NULL
     },
 
     make_space(_input: string, _start: number, _end: number, _: any) {
+        return NotVal  // return the NotVal that we can filter out later
+    },
+
+    make_comment(_input: string, _start: number, _end: number, _: any) {
         return NotVal  // return the NotVal that we can filter out later
     }
 }
