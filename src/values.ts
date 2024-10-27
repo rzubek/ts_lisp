@@ -1,3 +1,4 @@
+/** Represents all value types supported by Val */
 export enum Types {
     Nil,
     Boolean,
@@ -7,14 +8,9 @@ export enum Types {
     Cons
 }
 
+/** Represent a regular cons cell with "first" and "rest" references. */
 export class Cons {
-    car: Val;
-    cdr: Val;
-
-    constructor(car: Val, cdr: Val) {
-        this.car = car
-        this.cdr = cdr
-    }
+    constructor(public car: Val, public cdr: Val) { }
 
     public length(): number {
         if (this.cdr.type == Types.Cons) {
@@ -26,6 +22,7 @@ export class Cons {
     }
 }
 
+/** Type helper that lists raw JS types of all values accepted by the Val constructor */
 export type Values = Cons | boolean | string | number | null
 
 /** 
@@ -36,25 +33,32 @@ export type Values = Cons | boolean | string | number | null
 export class Val {
     static readonly NIL = new Val(Types.Nil, null)
 
-    type: Types
-    value: Values
-
-    constructor(type: Types, value: Values) {
-        this.type = type
-        this.value = value
-    }
-
-    public isNil(): boolean { return this.type == Types.Nil }
+    constructor(public type: Types, public value: Values) { }
 
     public toString(): string { return printVal(this.type, this.value) }
 
-    static makeNil() :Val { return this.NIL }
-    static makeBool(value: boolean) :Val { return new Val(Types.Boolean, value) }
+    public isPrimitive(): boolean { return this.isBool() || this.isString() || this.isNumber() }
+
+    public isNil(): boolean { return this.type == Types.Nil }
+    public isBool(): boolean { return this.type == Types.Boolean }
+    public isNumber(): boolean { return this.type == Types.Number }
+    public isString(): boolean { return this.type == Types.String }
+    public isSymbol(): boolean { return this.type == Types.Symbol }
+    public isCons(): boolean { return this.type == Types.Cons }
+
+    public asBool(): boolean { return this.value as boolean }
+    public asNumber(): number { return this.value as number }
+    public asString(): string { return this.value as string }
+    public asSymbol(): string { return this.value as string }
+    public asCons(): Cons { return this.value as Cons }
+
+    static makeNil(): Val { return this.NIL }
+    static makeBool(value: boolean): Val { return new Val(Types.Boolean, value) }
     static makeNumber(value: number): Val { return new Val(Types.Number, value) }
-    static makeString(value: string) :Val { return new Val(Types.String, value) }
-    static makeSymbol(value: string) :Val { return new Val(Types.Symbol, value) }
-    static makeConsRaw(value: Cons) :Val { return new Val(Types.Cons, value) }
-    static makeCons(car: Val, cdr: Val) :Val { return new Val(Types.Cons, new Cons(car, cdr)) }
+    static makeString(value: string): Val { return new Val(Types.String, value) }
+    static makeSymbol(value: string): Val { return new Val(Types.Symbol, value) }
+    static makeConsRaw(value: Cons): Val { return new Val(Types.Cons, value) }
+    static makeCons(car: Val, cdr: Val): Val { return new Val(Types.Cons, new Cons(car, cdr)) }
 }
 
 /** 
@@ -62,6 +66,12 @@ export class Val {
  * the parser, but not actually returned as parts of the parsed expression tree
  */
 export class NotVal { }
+
+
+
+//
+//
+// internal helper functions
 
 /** Helper function, returns a string representation of the value. */
 function printVal(type: Types, value: Values): string {
@@ -72,7 +82,7 @@ function printVal(type: Types, value: Values): string {
         case Types.Symbol: return (value as string)
         case Types.Cons: return arrayToString(consToArray(value as Cons))
         case Types.Boolean: return (value as boolean) ? "#t" : "#f"
-        default: 
+        default:
             throw new Error(`Error printing value, unknown val type: ${type}, value: ${value}`)
     }
 }
@@ -85,9 +95,9 @@ function arrayToString(vals: Val[]): string {
 
 //
 //
-// helper functions
+// exported helper functions
 
-export function makeTwoElementList(first: Val, second: Val): Val{
+export function makeTwoElementList(first: Val, second: Val): Val {
     return Val.makeCons(first, Val.makeCons(second, Val.NIL))
 }
 
