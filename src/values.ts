@@ -10,16 +10,18 @@ export enum Types {
 
 /** Represent a regular cons cell with "first" and "rest" references. */
 export class Cons {
-    constructor(public car: Val, public cdr: Val) { }
+    constructor(public first: Val, public rest: Val) { }
 
-    public length(): number {
-        if (this.cdr.type == Types.Cons) {
-            let tail = this.cdr.value as Cons;
-            return 1 + tail.length()
-        } else {
-            return 1
-        }
-    }
+    public car(): Val { return this.first }
+    public cdr(): Val { return this.rest }
+
+    public secondOrNil() { return this.tailOrNull()?.first ?? Val.NIL }
+    public thirdOrNil() { return this.tailOrNull()?.secondOrNil() ?? Val.NIL }
+
+    public hasListTail(): boolean { return this.rest != null && this.rest.isCons() }
+    public tailOrNull(): Cons { return this.hasListTail() ? this.rest.asCons() : null }
+
+    public length(): number { return listLength(this) }
 }
 
 /** Type helper that lists raw JS types of all values accepted by the Val constructor */
@@ -58,7 +60,7 @@ export class Val {
     static makeString(value: string): Val { return new Val(Types.String, value) }
     static makeSymbol(value: string): Val { return new Val(Types.Symbol, value) }
     static makeConsRaw(value: Cons): Val { return new Val(Types.Cons, value) }
-    static makeCons(car: Val, cdr: Val): Val { return new Val(Types.Cons, new Cons(car, cdr)) }
+    static makeCons(first: Val, rest: Val): Val { return new Val(Types.Cons, new Cons(first, rest)) }
 }
 
 /** 
@@ -114,9 +116,28 @@ export function consToArray(cons: Cons): Array<Val> {
     let results = new Array<Val>(len)
     let current = cons;
     for (let i = 0; i < len; i++) {
-        results[i] = current.car;
-        current = current.cdr.value as Cons;
+        results[i] = current.first;
+        current = current.rest.asCons()
     }
     return results;
 }
 
+export function listLength(cons: Cons): number {
+    let length = 0
+    while (cons != null) {
+        length++
+        cons = cons.tailOrNull()
+    }
+    return length
+}
+
+export function nth(val: Val, n: number): Val {
+    if (val == null || !val.isCons()) { return Val.NIL }
+    let result = val.asCons()
+    while (n > 0) {
+        n--
+        result = result.tailOrNull()
+    }
+
+    return result?.first ?? Val.NIL
+}

@@ -1,6 +1,6 @@
 import { Environment, evaluate } from "./interpreter";
 import { parse } from "./parser"
-import { Val } from "./values";
+import { arrayToCons, consToArray, listLength, makeTwoElementList, nth, Val } from "./values";
 
 let message: string = 'Hello World';
 console.log(message);
@@ -37,6 +37,15 @@ function verifyEval(input: string, expected?: string, env? :Environment): void {
     verify(expected == result, expected, result)
 }
 
+function verifyEvalError(input: string, env? :Environment): void {
+    try {
+        let result = stringifyVals(evaluate(input, env))
+        verify(false, "Error", result)
+    } catch (e) {
+        // success
+    }
+}
+
 function testParser() {
     verifyParse('1 2.0 "foo"', "1 2 \"foo\"")
     verifyParse("(1 2 foo f)")
@@ -48,6 +57,37 @@ function testParser() {
     verifyParse("(foo ;baz\n bar)", "(foo bar)")
 }
 
+function testVals (){
+    let abc = parse("(a b c)")[0]
+    let abcstr = abc.toString()
+
+    let abc2 = arrayToCons(consToArray(abc.asCons()))
+    console.assert(abcstr == abc2.toString())
+
+    let abc3 = Val.makeCons(Val.makeSymbol("a"), makeTwoElementList(Val.makeSymbol("b"),  Val.makeSymbol("c")))
+    console.assert(abcstr == abc3.toString())
+                        
+    console.assert(listLength(abc.asCons()) == 3)
+    console.assert(consToArray(abc.asCons()).length == 3)
+
+    console.assert(abc.asCons().secondOrNil().toString() == "b")
+    console.assert(abc.asCons().thirdOrNil().toString() == "c")
+
+    let justa = parse("(a)")[0]
+    console.assert(justa.asCons().secondOrNil().toString() == "()")
+    console.assert(justa.asCons().thirdOrNil().toString() == "()")
+
+    console.assert(parse("()")[0].toString() == "()")
+
+    console.assert(nth(abc, 0).value == "a")
+    console.assert(nth(abc, 2).value == "c")
+    console.assert(nth(abc, 3) == Val.NIL)
+    console.assert(nth(Val.NIL, 0) == Val.NIL)
+    console.assert(nth(null, 0) == Val.NIL)
+
+}
+
+
 function testSimpleEval() {
     let parent = new Environment(new Map([["parent", Val.makeString("present")]]))
     let env = new Environment(new Map([["foo", Val.makeNumber(42)]]), parent)
@@ -58,9 +98,13 @@ function testSimpleEval() {
     verifyEval("1 2 #t #f")          // primitives
     verifyEval('"foo"')
     verifyEval("foo", "42", env)     // symbol lookup in the environment
+    verifyEval("parent", '"present"', env)     // symbol lookup in the environment
+    verifyEvalError("doesNotExist")
 }
 
+
 testParser()
+testVals()
 testSimpleEval()
 
 if (errors > 0) {
