@@ -1063,7 +1063,7 @@
       if (max0 <= this._inputSize) {
         chunk0 = this._input.substring(this._offset, max0);
       }
-      if (chunk0 !== null && /^[a-zA-Z\-\_]/.test(chunk0)) {
+      if (chunk0 !== null && /^[a-zA-Z\!\@\#\$\%\^\&\*\-\_\=\+\:\/\?\>\<\\\~]/.test(chunk0)) {
         address0 = new TreeNode(this._input.substring(this._offset, this._offset + 1), this._offset, []);
         this._offset = this._offset + 1;
       } else {
@@ -1073,7 +1073,7 @@
           this._expected = [];
         }
         if (this._offset === this._failure) {
-          this._expected.push(['Grammar::alpha', '[a-zA-Z\\-\\_]']);
+          this._expected.push(['Grammar::alpha', '[a-zA-Z\\!\\@\\#\\$\\%\\^\\&\\*\\-\\_\\=\\+\\:\\/\\?\\>\\<\\\\\\~]']);
         }
       }
       this._cache._alpha[index0] = [address0, this._offset];

@@ -17,6 +17,7 @@ export class Cons {
 
     public secondOrNil() { return this.tailOrNull()?.first ?? Val.NIL }
     public thirdOrNil() { return this.tailOrNull()?.secondOrNil() ?? Val.NIL }
+    public fourthOrNil() { return this.tailOrNull()?.thirdOrNil() ?? Val.NIL }
 
     public hasListTail(): boolean { return this.rest != null && this.rest.isCons() }
     public tailOrNull(): Cons { return this.hasListTail() ? this.rest.asCons() : null }
@@ -34,6 +35,8 @@ export type Values = Cons | boolean | string | number | null
  */
 export class Val {
     static readonly NIL = new Val(Types.Nil, null)
+    static readonly TRUE = new Val(Types.Boolean, true)
+    static readonly FALSE = new Val(Types.Boolean, false)
 
     constructor(public type: Types, public value: Values) { }
 
