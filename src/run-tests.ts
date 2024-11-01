@@ -21,7 +21,7 @@ function stringifyVals(vals: Array<Val>): string {
 }
 
 function verifyEnv(env: Environment, key: string, expected: string): void {
-    let result = env.get(key)?.toString() ?? ""
+    let result = env.getOrNull(key)?.toString() ?? ""
     verify(expected == result, expected, result)
 }
 
@@ -126,6 +126,21 @@ function testEvalCons() {
     verifyEval("(if* #f 2)", "2")
 
     verifyEval("(begin #f #t \"hello\" 1 2 3)", "3", env)
+
+    // these tests modify env, then parent env, then add a new var
+    verifyEval("foo", "42", env)
+    verifyEval("(set! foo 7)", "7", env)
+    verifyEval("foo", "7", env)
+    console.assert(env.entries.size == 1)
+    verifyEval("parent", "\"present\"", env)
+    verifyEval("(set! parent 7)", "7", env)
+    verifyEval("parent", "7", env)
+    console.assert(parent.entries.size == 1)
+    verifyEvalError("bar", env)
+    verifyEval("(set! bar 7)", "7", env)
+    verifyEval("bar", "7", env)
+    console.assert(env.entries.size == 2)
+
 }
 
 

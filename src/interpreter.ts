@@ -10,8 +10,12 @@ export class Environment {
         this.parent = parent
     }
 
-    public get(name: string): Val | null {
-        return this.entries.get(name) ?? this.parent?.get(name);
+    public findEnvOrNull(name: string): Environment {
+        return this.entries.has(name) ? this : this.parent?.findEnvOrNull(name)
+    }
+
+    public getOrNull(name: string): Val {
+        return this.entries.get(name) ?? this.parent?.getOrNull(name);
     }
 }
 
@@ -45,7 +49,7 @@ export function evaluateVal(input: Val, env: Environment): Val {
 }
 
 function _evaluateSymbol(input: Val, env: Environment): Val {
-    let result = env.get(input.asSymbol())
+    let result = env.getOrNull(input.asSymbol())
     if (result != null) {
         return result
     }
@@ -87,7 +91,15 @@ function _tryEvaluateSpecialForm(first: Val, input: Cons, env: Environment): Val
 
         // (set! foo 1) updates foo in whichever environment it lives
         // or defines it in current top-level environent
-        // case "set!": ...
+        case "set!": {
+            _verifyArgCount(args, 2)  // (set! name value)
+            _verifyPredicate(args.first.isSymbol(), "Unexpected lvalue in set!, expected symbol, got: ", args.first)
+            let name = args.first.asSymbol()
+            let value = evaluateVal(args.secondOrNil(), env)
+            let container = env.findEnvOrNull(name) ?? env
+            container.entries.set(name, value)
+            return value
+        }
 
         // (if pred then else) evals pred and then either evals then or else
         // also note that (if pred then) == (if pred then ())
@@ -125,6 +137,12 @@ function _tryEvaluateSpecialForm(first: Val, input: Cons, env: Environment): Val
         let count = listLength(list)
         if (count < min || count > max) {
             throw new InterpreterError(`Invalid argument count, expected [${min}, ${max}] got ${count} in ${list}`)
+        }
+    }
+
+    function _verifyPredicate(pred: boolean, key: string, value: Val) {
+        if (! pred) {
+            throw new InterpreterError(key + value.toString())
         }
     }
 
