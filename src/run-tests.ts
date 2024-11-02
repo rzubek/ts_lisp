@@ -95,8 +95,8 @@ function testVals() {
 
 
 function testEvalAtom() {
-    let parent = new Environment(new Map([["parent", Val.makeString("present")]]))
-    let env = new Environment(new Map([["foo", Val.makeNumber(42)]]), parent)
+    let parent = new Environment().add("parent", Val.makeString("present"))
+    let env = new Environment(parent).add("foo", Val.makeNumber(42))
     verifyEnv(env, "foo", "42")
     verifyEnv(env, "parent", '"present"')
     verifyEnv(env, "doesNotExist", "")
@@ -109,8 +109,8 @@ function testEvalAtom() {
 }
 
 function testEvalCons() {
-    let parent = new Environment(new Map([["parent", Val.makeString("present")]]))
-    let env = new Environment(new Map([["foo", Val.makeNumber(42)]]), parent)
+    let parent = new Environment().add("parent", Val.makeString("present"))
+    let env = new Environment(parent).add("foo", Val.makeNumber(42))
     verifyEnv(env, "foo", "42")
 
     verifyEval("(quote foo)", "foo", env)
@@ -141,6 +141,18 @@ function testEvalCons() {
     verifyEval("bar", "7", env)
     console.assert(env.entries.size == 2)
 
+    verifyEval("(lambda () #t)", "[Closure (lambda () ...)]", env)
+    verifyEval("(lambda (a b c) #t)", "[Closure (lambda (a b c) ...)]", env)
+    verifyEvalError("(lambda 1 #t)", env)
+    verifyEvalError("(lambda ())", env)
+
+    // this adds a new definition of identity to env
+    verifyEval("(begin (set! identity (lambda (x) x)) (identity 1))", "1", env)
+    console.assert(env.entries.has("identity"))
+
+    verifyEval("((lambda (x) x) 1)", "1", env)
+    verifyEval("((lambda (x y) y) 1 2)", "2", env)
+    verifyEval("((lambda (x y) y #t #f x) 1 2)", "1", env)
 }
 
 

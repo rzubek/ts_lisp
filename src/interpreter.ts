@@ -1,13 +1,18 @@
 import { parse } from "./parser";
-import { Cons, listLength, Val } from "./values";
+import { Closure, Cons, consToArray, listLength, Type, Val } from "./values";
 
 export class Environment {
     entries: Map<string, Val>
     parent?: Environment
 
-    constructor(entries?: Map<string, Val>, parent?: Environment) {
-        this.entries = entries ?? new Map<string, Val>()
+    constructor(parent?: Environment) {
+        this.entries = new Map<string, Val>()
         this.parent = parent
+    }
+
+    public add(name: string, value: Val): Environment {
+        this.entries.set(name, value)
+        return this
     }
 
     public findEnvOrNull(name: string): Environment {
@@ -57,8 +62,7 @@ function _evaluateSymbol(input: Val, env: Environment): Val {
 }
 
 function _evaluateCons(input: Cons, env: Environment): Val {
-    let first = input.first
-    let result = _tryEvaluateSpecialForm(first, input, env) ?? _tryEvaluateFunctionCall(first, input, env)
+    let result = _tryEvaluateSpecialForm(input, env) ?? _tryEvaluateFunctionCall(input, env)
 
     if (result != null) {
         return result
@@ -70,8 +74,9 @@ function _evaluateCons(input: Cons, env: Environment): Val {
 
 
 
-function _tryEvaluateSpecialForm(first: Val, input: Cons, env: Environment): Val {
+function _tryEvaluateSpecialForm(input: Cons, env: Environment): Val {
 
+    let first = input.first
     if (!first.isSymbol()) { return null }
 
     let args = input.tailOrNull()
@@ -123,7 +128,15 @@ function _tryEvaluateSpecialForm(first: Val, input: Cons, env: Environment): Val
 
         // (lambda (args...) body...) creates a new env with args... and 
         // then evals (begin body ...) inside that env
-        // case "lambda": ...
+        case "lambda": {
+            _verifyArgCount(args, 2, Number.MAX_SAFE_INTEGER)  // (lambda fnargs ...)
+            let fnargs = args.first
+            _verifyPredicate(fnargs != null && (fnargs.isCons() || fnargs.isNil()), "Lambda arguments should be a list, got: ", args.first)
+            let fnbody = args.tailOrNull()
+            _verifyPredicate(fnbody != null, "Lambda must have a body! Expected expressions, got: ", Val.NIL)
+            
+            return Val.makeClosure(fnbody, env, fnargs)
+        }
 
         // (defmacro ...) compiles and installs the given macro body
         // case "defmacro": ...
@@ -150,18 +163,56 @@ function _tryEvaluateSpecialForm(first: Val, input: Cons, env: Environment): Val
         let value = evaluateVal(item, env);
         return { value: value, pass: (value.isBool() ? value.asBool() : !value.isNil()) }
     }
-
-    function _evaluateBlock(block: Cons, env: Environment): Val {
-        let result = Val.NIL
-        while (block != null) {
-            result = evaluateVal(block.first, env)
-            block = block.tailOrNull()
-        } 
-        return result
-    }
 }
 
-function _tryEvaluateFunctionCall(first: Val, cons: Cons, env: Environment): Val {
-    // todo
-    return null
+
+function _tryEvaluateFunctionCall(cons: Cons, env: Environment): Val {
+    let first = cons.first 
+
+    // evaluate the functor. if it's not a valid function, bail
+    let fn = evaluateVal(first, env)
+    if (! fn.isClosure()){
+        throw new InterpreterError("First element is not a valid function in: " + cons.toString())
+    }
+
+    let closure = fn.asClosure()
+    
+
+    // now we eval every argument and fill an env
+    var newenv = _extendEnv(closure, cons.tailOrNull(), env)
+
+    // finally we actually execute the body of the closure
+    return _evaluateBlock(closure.body, newenv)
+}
+
+function _extendEnv (closure: Closure, params: Cons, parent: Environment) :Environment {
+    var env = new Environment(parent)
+    var argnames = (closure.args?.isCons() ?? false) ? consToArray(closure.args.asCons()) : []
+    var argvals = (params != null) ? consToArray(params) : []
+    if (argnames.length != argvals.length) {
+        throw new InterpreterError(`Expected ${argnames.length} args, got ${argvals.length}, in function call (... ${params?.toString()})`)
+    }
+
+    for (let i = 0; i < argnames.length; i++) {
+        let val = evaluateVal(argvals[i], parent)
+        env.add(argnames[i].asSymbol(), val)
+    }
+
+    return env
+}
+
+function _evaluateBlock(block: Cons, env: Environment): Val {
+    let result = Val.NIL
+    while (block != null) {
+        result = evaluateVal(block.first, env)
+        block = block.tailOrNull()
+    } 
+    return result
+}
+
+function _mapEval (input: Cons, env: Environment) :Cons {
+    let first = evaluateVal(input.first, env)
+    let tail = input.tailOrNull()
+    let rest = tail == null ? Val.NIL : new Val(Type.Cons, _mapEval(tail, env))
+    return new Cons(first, rest)
 }

@@ -1,4 +1,4 @@
-import { makeTwoElementList, arrayToCons, Val, Types, NotVal } from "./values"
+import { makeTwoElementList, arrayToCons, Val, Type, NotVal } from "./values"
 
 declare function require(name: string);  // import an existing js file
 var parser = require('./grammar-files/grammar.js')
@@ -9,15 +9,15 @@ const actions = {
     // note: most of these return a Val 
 
     make_quoted(_input: string, _start: number, _end: number, [_quote, body]: any) {
-        return makeTwoElementList( new Val(Types.Symbol, "quote"), body)
+        return makeTwoElementList( new Val(Type.Symbol, "quote"), body)
     },
 
     make_symbol(_input: string, _start: number, _end: number, [first, rest]: any) {
-        return new Val(Types.Symbol, first.text + rest.text)
+        return new Val(Type.Symbol, first.text + rest.text)
     },
 
     make_string(_input: string, _start: number, _end: number, [_, string]: any) {
-        return new Val(Types.String, string.text)
+        return new Val(Type.String, string.text)
     },
 
     make_list(_input: string, _start: number, _end: number, [_, elts]: any) {
@@ -30,15 +30,15 @@ const actions = {
     },
 
     make_int(input: string, start: number, end: number, _: any) {
-        return new Val(Types.Number, parseInt(input.substring(start, end), 10))
+        return new Val(Type.Number, parseInt(input.substring(start, end), 10))
     },
 
     make_float(input: string, start: number, end: number, _: any) {
-        return new Val(Types.Number, parseFloat(input.substring(start, end)))
+        return new Val(Type.Number, parseFloat(input.substring(start, end)))
     },
 
     make_bool(_input: string, _start: number, _end: number, [_, elt]: any) {
-        return new Val(Types.Boolean, (elt.text == "t" || elt.text == "T"))
+        return new Val(Type.Boolean, (elt.text == "t" || elt.text == "T"))
     },
 
     make_nil(_input: string, _start: number, _end: number, _: any) {

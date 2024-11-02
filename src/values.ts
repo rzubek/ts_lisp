@@ -1,14 +1,17 @@
+import { Environment } from "./interpreter"
+
 /** Represents all value types supported by Val */
-export enum Types {
+export enum Type {
     Nil,
     Boolean,
     String,
     Symbol,
     Number,
-    Cons
+    Cons,
+    Closure
 }
 
-/** Represent a regular cons cell with "first" and "rest" references. */
+/** Represents a regular cons cell with "first" and "rest" references. */
 export class Cons {
     constructor(public first: Val, public rest: Val) { }
 
@@ -23,10 +26,24 @@ export class Cons {
     public tailOrNull(): Cons { return this.hasListTail() ? this.rest.asCons() : null }
 
     public length(): number { return listLength(this) }
+
+    public toString(): string { return printVal(Type.Cons, this) }
 }
 
+/** 
+ * Represents a closure, which contains links to the function body (code), 
+ * the environment that defines what variables have already been bound
+ * at the time when the function was defined, and a list of unbound function arguments.
+*/
+export class Closure {
+    // body is never null because every function must return something.
+    // args may be null if this is a nullary function
+    constructor(public body: Cons, public env: Environment, public args?: Val) { }
+}
+
+
 /** Type helper that lists raw JS types of all values accepted by the Val constructor */
-export type Values = Cons | boolean | string | number | null
+export type Values = Closure | Cons | boolean | string | number | null
 
 /** 
  * This class represents possible parsed values, such as atoms (strings, numbers,
@@ -34,36 +51,41 @@ export type Values = Cons | boolean | string | number | null
  * an empty list.
  */
 export class Val {
-    static readonly NIL = new Val(Types.Nil, null)
-    static readonly TRUE = new Val(Types.Boolean, true)
-    static readonly FALSE = new Val(Types.Boolean, false)
+    static readonly NIL = new Val(Type.Nil, null)
+    static readonly TRUE = new Val(Type.Boolean, true)
+    static readonly FALSE = new Val(Type.Boolean, false)
 
-    constructor(public type: Types, public value: Values) { }
+    constructor(public type: Type, public value: Values) { }
 
     public toString(): string { return printVal(this.type, this.value) }
 
     public isPrimitive(): boolean { return this.isBool() || this.isString() || this.isNumber() }
 
-    public isNil(): boolean { return this.type == Types.Nil }
-    public isBool(): boolean { return this.type == Types.Boolean }
-    public isNumber(): boolean { return this.type == Types.Number }
-    public isString(): boolean { return this.type == Types.String }
-    public isSymbol(): boolean { return this.type == Types.Symbol }
-    public isCons(): boolean { return this.type == Types.Cons }
+    public isNil(): boolean { return this.type == Type.Nil }
+    public isBool(): boolean { return this.type == Type.Boolean }
+    public isNumber(): boolean { return this.type == Type.Number }
+    public isString(): boolean { return this.type == Type.String }
+    public isSymbol(): boolean { return this.type == Type.Symbol }
+    public isCons(): boolean { return this.type == Type.Cons }
+    public isClosure(): boolean { return this.type == Type.Closure }
 
     public asBool(): boolean { return this.value as boolean }
     public asNumber(): number { return this.value as number }
     public asString(): string { return this.value as string }
     public asSymbol(): string { return this.value as string }
     public asCons(): Cons { return this.value as Cons }
+    public asClosure(): Closure { return this.value as Closure }
 
     static makeNil(): Val { return this.NIL }
-    static makeBool(value: boolean): Val { return new Val(Types.Boolean, value) }
-    static makeNumber(value: number): Val { return new Val(Types.Number, value) }
-    static makeString(value: string): Val { return new Val(Types.String, value) }
-    static makeSymbol(value: string): Val { return new Val(Types.Symbol, value) }
-    static makeConsRaw(value: Cons): Val { return new Val(Types.Cons, value) }
-    static makeCons(first: Val, rest: Val): Val { return new Val(Types.Cons, new Cons(first, rest)) }
+    static makeBool(value: boolean): Val { return new Val(Type.Boolean, value) }
+    static makeNumber(value: number): Val { return new Val(Type.Number, value) }
+    static makeString(value: string): Val { return new Val(Type.String, value) }
+    static makeSymbol(value: string): Val { return new Val(Type.Symbol, value) }
+    static makeConsRaw(value: Cons): Val { return new Val(Type.Cons, value) }
+    static makeCons(first: Val, rest: Val): Val { return new Val(Type.Cons, new Cons(first, rest)) }
+    static makeClosure(body: Cons, env: Environment, args?: Val): Val {
+        return new Val(Type.Closure, new Closure(body, env, args))
+    }
 }
 
 /** 
@@ -79,14 +101,18 @@ export class NotVal { }
 // internal helper functions
 
 /** Helper function, returns a string representation of the value. */
-function printVal(type: Types, value: Values): string {
+function printVal(type: Type, value: Values): string {
     switch (type) {
-        case Types.Nil: return "()"
-        case Types.Number: return (value as number).toString()
-        case Types.String: return "\"" + (value as string) + "\""
-        case Types.Symbol: return (value as string)
-        case Types.Cons: return arrayToString(consToArray(value as Cons))
-        case Types.Boolean: return (value as boolean) ? "#t" : "#f"
+        case Type.Nil: return "()"
+        case Type.Boolean: return (value as boolean) ? "#t" : "#f"
+        case Type.Number: return (value as number).toString()
+        case Type.String: return `\"${value as string}\"`
+        case Type.Symbol: return (value as string)
+        case Type.Cons: return arrayToString(consToArray(value as Cons))
+        case Type.Closure: {
+            let args = (value == null) ? "()" : (value as Closure).args.toString()
+            return `[Closure (lambda ${args} ...)]`
+        }
         default:
             throw new Error(`Error printing value, unknown val type: ${type}, value: ${value}`)
     }
