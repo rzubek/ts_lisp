@@ -1,6 +1,6 @@
-import { Environment, evaluate } from "./interpreter";
+import { evaluate } from "./interpreter";
 import { parse } from "./parser"
-import { arrayToCons, consToArray, listLength, makeTwoElementList, nth, Val } from "./values";
+import { length, envGet, Environment, Val, print, arrayToCons, consToArray, asCons, makeCons, makeSymbol, makeTwoElementList, cadr, caddr, isCons, second, third, first, isNil, nth, NIL, fourth, envMake, envAdd, makeString, makeNumber } from "./values";
 
 let message: string = 'Hello World';
 console.log(message);
@@ -16,12 +16,13 @@ function verify(test: boolean, expected: any, actual: any): void {
 }
 
 function stringifyVals(vals: Array<Val>): string {
-    let strings = vals.map(val => val.toString())
+    let strings = vals.map(val => print(val))
     return strings.join(" ")
 }
 
 function verifyEnv(env: Environment, key: string, expected: string): void {
-    let result = env.getOrNull(key)?.toString() ?? ""
+    let value = envGet(env, key)
+    let result = value != null ? print(value) : ""
     verify(expected == result, expected, result)
 }
 
@@ -32,6 +33,7 @@ function verifyParse(input: string, expected?: string): void {
 }
 
 function verifyEval(input: string, expected?: string, env?: Environment): void {
+    env = env ?? envMake()
     let result = stringifyVals(evaluate(input, env))
     expected ??= input
     verify(expected == result, input + " => " + expected, result)
@@ -39,6 +41,7 @@ function verifyEval(input: string, expected?: string, env?: Environment): void {
 
 function verifyEvalError(input: string, env?: Environment): void {
     try {
+        env = env ?? envMake()
         let result = stringifyVals(evaluate(input, env))
         verify(false, "Error", result)
     } catch (e) {
@@ -59,44 +62,46 @@ function testParser() {
 }
 
 function testVals() {
-    let abc = parse("(a b c)")[0]
-    let abcstr = abc.toString()
+    let tryabc = parse("(a b c)")[0]
+    console.assert(isCons(tryabc))
+    let abc = asCons(tryabc)
+    let abcstr = print(abc)
 
-    let abc2 = arrayToCons(consToArray(abc.asCons()))
-    console.assert(abcstr == abc2.toString())
+    let abc2 = arrayToCons(consToArray(abc))
+    console.assert(abcstr == print(abc2))
 
-    let abc3 = Val.makeCons(Val.makeSymbol("a"), makeTwoElementList(Val.makeSymbol("b"), Val.makeSymbol("c")))
-    console.assert(abcstr == abc3.toString())
+    let abc3 = makeCons(makeSymbol("a"), makeTwoElementList(makeSymbol("b"), makeSymbol("c")))
+    console.assert(abcstr == print(abc3))
 
-    console.assert(listLength(abc.asCons()) == 3)
-    console.assert(consToArray(abc.asCons()).length == 3)
+    console.assert(length(asCons(abc)) == 3)
+    console.assert(consToArray(asCons(abc)).length == 3)
 
-    console.assert(abc.asCons().secondOrNil().toString() == "b")
-    console.assert(abc.asCons().thirdOrNil().toString() == "c")
+    console.assert(print(first(abc)) == "a")
+    console.assert(print(second(abc)) == "b")
+    console.assert(print(third(abc)) == "c")
+    console.assert(print(fourth(abc)) == "()")
 
-    let justa = parse("(a)")[0]
-    console.assert(justa.asCons().secondOrNil().toString() == "()")
-    console.assert(justa.asCons().thirdOrNil().toString() == "()")
+    let justa = asCons(parse("(a)")[0])
+    console.assert(print(first(justa)) == "a")
+    console.assert(print(second(justa)) == "()")
+    console.assert(print(third(justa)) == "()")
 
-    console.assert(parse("()")[0].toString() == "()")
+    let nothing = parse("()")[0]
+    console.assert(isNil(nothing))
+    console.assert(print(nothing) == "()")
 
-    console.assert(nth(abc, 0).value == "a")
-    console.assert(nth(abc, 2).value == "c")
-    console.assert(nth(abc, 3) == Val.NIL)
-    console.assert(nth(Val.NIL, 0) == Val.NIL)
-    console.assert(nth(null, 0) == Val.NIL)
-
-    console.assert(abc.asCons().first.toString() == "a")
-    console.assert(abc.asCons().secondOrNil().toString() == "b")
-    console.assert(abc.asCons().thirdOrNil().toString() == "c")
-    console.assert(abc.asCons().fourthOrNil().toString() == "()")
-
+    console.assert(print(nth(abc, 0)) == "a")
+    console.assert(print(nth(abc, 1)) == "b")
+    console.assert(print(nth(abc, 2)) == "c")
+    console.assert(print(nth(abc, 3)) == "()")
+    console.assert(isNil(nth(abc, 3)))
+    console.assert(isNil(nth(NIL, 0)))
 }
 
 
 function testEvalAtom() {
-    let parent = new Environment().add("parent", Val.makeString("present"))
-    let env = new Environment(parent).add("foo", Val.makeNumber(42))
+    let parent = envAdd(envMake(), "parent", makeString("present"))
+    let env = envAdd(envMake(parent), "foo", makeNumber(42))
     verifyEnv(env, "foo", "42")
     verifyEnv(env, "parent", '"present"')
     verifyEnv(env, "doesNotExist", "")
@@ -109,8 +114,8 @@ function testEvalAtom() {
 }
 
 function testEvalCons() {
-    let parent = new Environment().add("parent", Val.makeString("present"))
-    let env = new Environment(parent).add("foo", Val.makeNumber(42))
+    let parent = envAdd(envMake(), "parent", makeString("present"))
+    let env = envAdd(envMake(parent), "foo", makeNumber(42))
     verifyEnv(env, "foo", "42")
 
     verifyEval("(quote foo)", "foo", env)
@@ -154,7 +159,6 @@ function testEvalCons() {
     verifyEval("((lambda (x y) y) 1 2)", "2", env)
     verifyEval("((lambda (x y) y #t #f x) 1 2)", "1", env)
 }
-
 
 testParser()
 testVals()
