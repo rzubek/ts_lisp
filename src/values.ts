@@ -13,7 +13,8 @@ export enum Type {
     Symbol,
     Number,
     Cons,
-    Closure
+    Closure,
+    Primop
 }
 
 /** Represents the NIL object */
@@ -44,8 +45,15 @@ export interface Cons { type: Type.Cons, car: Val, cdr: Cons | Nil }
 */
 export interface Closure { type: Type.Closure, body: ConsOrNil, env: Environment, args: Cons | Nil }
 
+/** 
+ * Represents a primitive operation, which is a combo of a function reference
+ * to a TS/JS function, and a list of argument types, plus finally 
+ * a varargs flag in case the function allows for more arguments than the named ones.
+ */
+export interface Primop { type: Type.Primop, name: string, argtypes: string[], fn: (...args: any[]) => any }
+
 /** Type helper that lists raw JS types of all values accepted by the Val constructor */
-export type Val = Nil | Boolean | Number | String | Symbol | Cons | Closure
+export type Val = Nil | Boolean | Number | String | Symbol | Cons | Closure | Primop
 
 /** 
  * This class represents the function's execution environment. Entries represent
@@ -78,6 +86,9 @@ export function makeCons(car: Val, cdr: Cons | Nil): Cons { return { type: Type.
 export function makeClosure(body: ConsOrNil, env: Environment, args: Cons | Nil): Closure {
     return { type: Type.Closure, body: body, env: env, args: args }
 }
+export function makePrimop(name: string, argtypes: string[], fn: (...args: any[]) => any): Primop {
+    return { type: Type.Primop, name: name, argtypes: argtypes, fn: fn }
+}
 
 export function isNil(val: Val): val is Nil { return val.type == Type.Nil }
 export function isBoolean(val: Val): val is Boolean { return val.type == Type.Boolean }
@@ -86,6 +97,7 @@ export function isString(val: Val): val is String { return val.type == Type.Stri
 export function isSymbol(val: Val): val is Symbol { return val.type == Type.Symbol }
 export function isCons(val: Val): val is Cons { return val.type == Type.Cons }
 export function isClosure(val: Val): val is Closure { return val.type == Type.Closure }
+export function isPrimop(val: Val): val is Primop { return val.type == Type.Primop }
 
 export function asNil(val: Val): Nil { _checkType(val, Type.Nil); return (val as Nil) }
 export function asBoolean(val: Val): Boolean { _checkType(val, Type.Boolean); return (val as Boolean) }
@@ -94,9 +106,32 @@ export function asString(val: Val): String { _checkType(val, Type.String); retur
 export function asSymbol(val: Val): Symbol { _checkType(val, Type.Symbol); return (val as Symbol) }
 export function asCons(val: Val): Cons { _checkType(val, Type.Cons); return (val as Cons) }
 export function asClosure(val: Val): Closure { _checkType(val, Type.Closure); return (val as Closure) }
+export function asPrimop(val: Val): Primop { _checkType(val, Type.Primop); return (val as Primop) }
 
 function _checkType(val: Val, type: Type): void {
     if (val.type != type) { throw new InterpreterError(`Invalid typecast, expected ${type}, got ${val.type}`) }
+}
+
+export function valToPrimval(val: Val): any {
+    if (isNil(val)) { return null }
+    if (isBoolean(val)) { return val.value }
+    if (isNumber(val)) { return val.value }
+    if (isString(val)) { return val.value }
+    if (isSymbol(val)) { return val.value }
+    if (isCons(val)) { return consToArray(val) }
+    throw new InterpreterError(`Invalid attempt to convert ${print(val)} to a primitive value`)
+}
+
+export function primvalToVal (prim: any): Val {
+    if (prim == null) { return NIL }
+    
+    let type = typeof prim
+    if (type === "string") { return makeString(prim)}
+    if (type === "number") { return makeNumber(prim) }
+    if (type === "boolean") { return makeBoolean(prim) }
+    if (Array.isArray(prim)) { return arrayToCons(prim.map(elt => primvalToVal(elt)))}
+    throw new InterpreterError(`Invalid attempt to convert primitive value ${prim} into a value`)
+
 }
 
 // Cons helpers
@@ -132,6 +167,7 @@ export function print(val: Val): string {
             let args = val.args.type == Type.Nil ? "()" : print(val.args)
             return `[Closure (lambda ${args} ...)]`
         }
+        case Type.Primop: return `[Primop: ${val.name} ${val.argtypes}]`
         default:
             const invalid: never = val
             throw new Error(`Error printing value ${invalid}`)
@@ -148,7 +184,7 @@ function printArray(vals: Val[]): string {
 // environment accessors
 
 export function envMake(parent?: Environment): Environment {
-    return { entries: new Map<string, Val>(), parent: parent ?? null }
+    return { entries: new Map<string, Val>(), parent: parent ?? PRIMOP_ENV }
 }
 
 export function envAdd(env: Environment, name: string, value: Val): Environment {
@@ -217,3 +253,30 @@ export function nth(cons: ConsOrNil, n: number): Val {
 
     return isCons(cons) ? cons.car : NIL
 }
+
+// TODO move this to primops
+
+export let PRIMOPS: Array<Primop> = [
+    makePrimop("not", ["boolean"], (a: boolean) => !a),
+
+    makePrimop("+", ["number", "number"], (a: number, b: number) => a + b),
+    makePrimop("-", ["number", "number"], (a: number, b: number) => a - b),
+    makePrimop("*", ["number", "number"], (a: number, b: number) => a * b),
+    makePrimop("/", ["number", "number"], (a: number, b: number) => a / b),
+
+    makePrimop("==", ["number", "number"], (a: number, b: number) => a == b),
+    makePrimop("!=", ["number", "number"], (a: number, b: number) => a != b),
+    makePrimop(">", ["number", "number"], (a: number, b: number) => a > b),
+    makePrimop("<", ["number", "number"], (a: number, b: number) => a < b),
+    makePrimop(">=", ["number", "number"], (a: number, b: number) => a >= b),
+    makePrimop("<=", ["number", "number"], (a: number, b: number) => a <= b),
+]
+
+export function installPrimops(env: Environment): void {
+    for (let primop of PRIMOPS) {
+        env.entries.set(primop.name, primop)
+    }
+}
+
+export let PRIMOP_ENV: Environment = { entries: new Map<string, Val>(), parent: null }
+installPrimops(PRIMOP_ENV)

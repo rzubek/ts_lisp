@@ -1,9 +1,9 @@
 import { parse } from "./parser";
-import { Closure, Cons, consToArray, envGet, print, Symbol, Environment, envMake, isBoolean, isNil, isNumber, isString, isSymbol, length, Type, Val, isCons, InterpreterError, cdr, car, ConsOrNil, first, second, envFind, third, rest, makeClosure, asBoolean, asCons, envAdd, isClosure, asClosure, asSymbol, NIL, makeCons } from "./values";
+import { Closure, Cons, consToArray, envGet, print, Symbol, Environment, envMake, isBoolean, isNil, isNumber, isString, isSymbol, length, Type, Val, isCons, InterpreterError, cdr, car, ConsOrNil, first, second, envFind, third, rest, makeClosure, asBoolean, asCons, envAdd, isClosure, asClosure, asSymbol, NIL, makeCons, PRIMOP_ENV, isPrimop, Primop, valToPrimval, primvalToVal } from "./values";
 
 
 export function evaluate(input: string, env: Environment | null): Val[] {
-    env = env ?? envMake()
+    env = env ?? PRIMOP_ENV
     let parsed: Val[] = parse(input)
 
     return parsed.map(val => evaluateVal(val, env))
@@ -20,13 +20,13 @@ export function evaluateVal(input: Val, env: Environment): Val {
     // lists get evaluated as functions or other special forms
     if (isCons(input)) { return _evaluateCons(input, env); }
 
-    throw new InterpreterError("Unable to evaluate input: " + input.toString())
+    throw new InterpreterError("Unable to evaluate input: " + input)
 }
 
 function _evaluateSymbol(input: Symbol, env: Environment): Val {
     let result = envGet(env, input.value)
     if (result != null) { return result }
-    throw new InterpreterError("Unknown symbol: " + input.toString())
+    throw new InterpreterError("Unknown symbol: " + input.value)
 }
 
 function _evaluateCons(input: Cons, env: Environment): Val {
@@ -34,7 +34,7 @@ function _evaluateCons(input: Cons, env: Environment): Val {
         _tryEvaluateFunctionCall(input, env)
 
     if (result != null) { return result }
-    throw new InterpreterError(`Don't know how to evaluate cons: ${input.toString()}`)
+    throw new InterpreterError(`Don't know how to evaluate cons: ${print(input)}`)
 }
 
 
@@ -139,16 +139,40 @@ function _tryEvaluateFunctionCall(cons: Cons, env: Environment): Val {
 
     // evaluate the functor. if it's not a valid function, bail
     let fn = evaluateVal(fnref, env)
-    if (!isClosure(fn)) {
-        throw new InterpreterError("First element is not a valid function in: " + cons.toString())
+    if (isPrimop(fn)){
+        return _evaluatePrimop(fn, rest(cons), env)
     }
 
-    // now we eval every argument and fill an env
-    let closure = asClosure(fn)
-    var newenv = _extendEnv(closure, cdr(cons), env)
+    if (isClosure(fn)) {
+        // now we eval every argument and fill an env
+        let closure = asClosure(fn)
+        var newenv = _extendEnv(closure, rest(cons), env)
 
-    // finally we actually execute the body of the closure
-    return _evaluateBlock(closure.body, newenv)
+        // finally we actually execute the body of the closure
+        return _evaluateBlock(closure.body, newenv)
+    }
+
+    throw new InterpreterError(`First element is not a valid function in: ${print(cons)}`)
+}
+
+function _evaluatePrimop(primop :Primop, params: ConsOrNil, env: Environment): Val {
+    var argtypes = primop.argtypes
+    var argvals = (params != null) ? consToArray(params) : []
+    if (argtypes.length != argvals.length) {
+        throw new InterpreterError(`Expected ${argtypes.length} args, got ${argvals.length}, in primop call (${primop.name} ${print(params)})`)
+    }
+
+    var primvals = new Array<any>(argvals.length)
+    for (let i = 0; i < argvals.length; i++) {
+        let val = evaluateVal(argvals[i], env)
+        primvals[i] = valToPrimval(val)
+        if (typeof primvals[i] != argtypes[i]) {
+            throw new InterpreterError(`Expected argument of type ${argtypes[i]}, got: ${print(val)}`)
+        }
+    }
+
+    var result = primop.fn(...primvals)
+    return primvalToVal(result)
 }
 
 function _extendEnv(closure: Closure, params: ConsOrNil, parent: Environment): Environment {
@@ -156,10 +180,10 @@ function _extendEnv(closure: Closure, params: ConsOrNil, parent: Environment): E
     var argnames = isCons(closure.args) ? consToArray(asCons(closure.args)) : []
     var argvals = (params != null) ? consToArray(params) : []
     if (argnames.length != argvals.length) {
-        throw new InterpreterError(`Expected ${argnames.length} args, got ${argvals.length}, in function call (... ${params?.toString()})`)
+        throw new InterpreterError(`Expected ${argnames.length} args, got ${argvals.length}, in function call (... ${print(params)})`)
     }
 
-    for (let i = 0; i < argnames.length; i++) {
+    for (let i = 0; i < argvals.length; i++) {
         let val = evaluateVal(argvals[i], parent)
         if (!isSymbol(argnames[i])) {
             throw new InterpreterError(`Expected function argument symbol, got: ${print(argnames[i])}`)

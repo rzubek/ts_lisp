@@ -1,6 +1,6 @@
 import { evaluate } from "./interpreter";
 import { parse } from "./parser"
-import { length, envGet, Environment, Val, print, arrayToCons, consToArray, asCons, makeCons, makeSymbol, makeTwoElementList, cadr, caddr, isCons, second, third, first, isNil, nth, NIL, fourth, envMake, envAdd, makeString, makeNumber } from "./values";
+import { length, envGet, Environment, Val, print, arrayToCons, consToArray, asCons, makeCons, makeSymbol, makeTwoElementList, cadr, caddr, isCons, second, third, first, isNil, nth, NIL, fourth, envMake, envAdd, makeString, makeNumber, valToPrimval, makeBoolean, primvalToVal } from "./values";
 
 let message: string = 'Hello World';
 console.log(message);
@@ -160,10 +160,23 @@ function testEvalCons() {
     verifyEval("((lambda (x y) y #t #f x) 1 2)", "1", env)
 }
 
+function testEvalPrimops () {
+    console.assert(valToPrimval(makeNumber(42)) == 42)
+    console.assert(valToPrimval(makeString("foo")) == "foo")
+    console.assert(valToPrimval(makeBoolean(true)) == true)
+    verifyEval("(+ 1 2)", "3")
+    verifyEval("(* 2 (+ 1 2))", "6")
+    verifyEval("(> 2 1)", "#t")
+    verifyEval("(not (== 2 1))", "#t")
+
+    verifyEval("(begin (set! x 0) (set! x (+ x 1)) x)", "1")
+}
+
 testParser()
 testVals()
 testEvalAtom()
 testEvalCons()
+testEvalPrimops()
 
 if (errors > 0) {
     console.error(`TOTAL ERRORS: ${errors}`)
